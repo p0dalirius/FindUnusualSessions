@@ -1,0 +1,4 @@
+impacket
+sectools
+argparse
+sectools
