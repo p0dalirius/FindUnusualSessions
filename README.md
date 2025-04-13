@@ -1,7 +1,7 @@
 ![](./.github/banner.png)
 
 <p align="center">
-    Detect Unusual sessions opened on remote machines using RPC!
+    A tool to remotely detect unusual sessions opened on windows machines using RPC
     <br>
     <img alt="GitHub release (latest by date)" src="https://img.shields.io/github/v/release/p0dalirius/FindUnusualSessions">
     <a href="https://twitter.com/intent/follow?screen_name=podalirius_" title="Follow"><img src="https://img.shields.io/twitter/follow/podalirius_?label=Podalirius&style=social"></a>
