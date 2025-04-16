@@ -1,4 +1,3 @@
 impacket
 sectools
 argparse
-sectools
