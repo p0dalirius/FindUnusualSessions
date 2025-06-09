@@ -61,7 +61,7 @@ def getDomainsAndTrusts(auth_domain, auth_username, auth_password, auth_lm_hash,
             if part.startswith("DC="):
                 domain += part[3:] + "."
         domain = domain.rstrip('.')
-        domainsAndtrusts.append(domain)
+        domainsAndtrusts.append(domain.upper())
     
     return domainsAndtrusts
 
@@ -830,7 +830,7 @@ def worker(options, target, domain, username, password, lmhash, nthash, register
                             ))
 
                         elif is_fqdn(session["source"]):
-                            source_domain = session["source"].split('.', 1)[-1]
+                            source_domain = session["source"].split('.', 1)[-1].upper()
                             if source_domain not in registered_domains:
                                 logger.dateprint(f"[\x1b[1;48;2;233;61;3;97mExt. Domain\x1b[0m] User \x1b[1;93m%s\x1b[0m is logged in on \x1b[1;93m%s\x1b[0m at \x1b[1;94m%s\x1b[0m from %s, IDLE since \x1b[1;96m%s\x1b[0m" % (
                                     session["username"],
