@@ -31,7 +31,7 @@ import traceback
 VERSION = "1.1"
 
 
-def getDomainsAndTrusts(auth_domain, auth_username, auth_password, auth_lm_hash, auth_nt_hash, auth_dc_ip, use_ldaps=False):           
+def getDomainsAndTrusts(auth_domain, auth_username, auth_password, auth_lm_hash, auth_nt_hash, auth_dc_ip, use_ldaps=False):
     ldap_server, ldap_session = init_ldap_session(
         auth_domain=auth_domain,
         auth_dc_ip=auth_dc_ip,
@@ -62,13 +62,13 @@ def getDomainsAndTrusts(auth_domain, auth_username, auth_password, auth_lm_hash,
                 domain += part[3:] + "."
         domain = domain.rstrip('.')
         domainsAndtrusts.append(domain.upper())
-    
+
     return domainsAndtrusts
 
 
 def timedeltaStr(t):
     hours, rem = divmod(t.total_seconds(), 3600)
-    minutes, seconds = divmod(rem, 60)   
+    minutes, seconds = divmod(rem, 60)
     if hours > 0:
         return ("%dh%dm%ds" % (hours, minutes, seconds))
     elif minutes > 0:
@@ -192,7 +192,7 @@ def load_targets(options, logger):
             logger.debug("Target '%s' was not added." % target)
 
     final_targets = sorted(list(set(final_targets)))
-    
+
     return final_targets
 
 
@@ -316,7 +316,7 @@ class Logger(object):
         Args:
             message (str): The message to be logged.
         """
-        
+
         if self.loglevel.value >= LogLevel.DEBUG.value:
             date_str = datetime.datetime.now().strftime("[%Y-%m-%d %H:%M:%S]")
             nocolor_message = re.sub(r"\x1b[\[]([0-9;]+)m", "", message)
@@ -364,7 +364,7 @@ class Logger(object):
 class MicrosoftDNS(object):
     """
     Class to interact with Microsoft DNS servers for resolving domain names to IP addresses.
-    
+
     Attributes:
         dnsserver (str): The IP address of the DNS server.
         verbose (bool): Flag to enable verbose mode.
@@ -381,7 +381,7 @@ class MicrosoftDNS(object):
     def __init__(self, dnsserver, auth_domain, auth_username, auth_password, auth_dc_ip, auth_lm_hash, auth_nt_hash, use_ldaps=False, logger=None):
         super(MicrosoftDNS, self).__init__()
         self.dnsserver = dnsserver
-        
+
         self.auth_domain = auth_domain
         self.auth_username = auth_username
         self.auth_password = auth_password
@@ -511,7 +511,7 @@ class MicrosoftDNS(object):
         Returns:
             dict: A dictionary containing information about wildcard DNS entries found in the Microsoft DNS server.
         """
-        
+
         ldap_server, ldap_session = init_ldap_session(
             auth_domain=self.auth_domain,
             auth_dc_ip=self.auth_dc_ip,
@@ -573,9 +573,10 @@ class RPCSessionsEnumerator(object):
         smbconnection (object): The SMB connection object.
     """
 
-    def __init__(self, options, midns, hostname, address, username, domain, password, lmhash='', nthash='', aesKey=None):
+    def __init__(self, options, logger, midns, hostname, address, username, domain, password, lmhash='', nthash='', aesKey=None):
         self.options = options
         self.midns = midns
+        self.logger = logger
         # Target
         self.address = address
         self.hostname = hostname
@@ -627,7 +628,7 @@ class RPCSessionsEnumerator(object):
             try:
                 dce.connect()
             except (SMB3.HostnameValidationException, SMB.HostnameValidationException) as exc:
-                self.logger.info("Ignoring host %s since its hostname does not match: %s", self.hostname, str(exc))
+                self.logger.info("Ignoring host %s since its hostname does not match: %s" % (self.hostname, str(exc)))
                 return None
             except SessionError as exc:
                 if ("STATUS_PIPE_NOT_AVAILABLE" in str(exc) or "STATUS_OBJECT_NAME_NOT_FOUND" in str(exc)) and "winreg" in binding.lower():
@@ -643,9 +644,9 @@ class RPCSessionsEnumerator(object):
                 # Else, just log it
                 if self.options.debug:
                     traceback.print_exc()
-                    self.logger.error("DCE/RPC connection failed: %s", str(exc))
+                    self.logger.error("DCE/RPC connection failed: %s" % str(exc))
                 return None
-            
+
             if self.smbconnection is None:
                 self.smbconnection = self.rpc.get_smb_connection()
                 # We explicity set the smbconnection back to the rpc object
@@ -657,31 +658,27 @@ class RPCSessionsEnumerator(object):
         except DCERPCException as e:
             if self.options.debug:
                 traceback.print_exc()
-                self.logger.error("DCE/RPC connection failed: %s", str(e))
+                self.logger.error("DCE/RPC connection failed: %s" % str(e))
             return None
         except KeyboardInterrupt:
             raise
-        except Exception as e:
-            if self.options.debug:
-                traceback.print_exc()
-                self.logger.error("DCE/RPC connection failed: %s", e)
-            return None
         except Exception as err:
             if self.options.debug:
-                self.logger.error("DCE/RPC connection failed (unknown error): %s" % err)
+                traceback.print_exc()
+                self.logger.error("DCE/RPC connection failed: %s" % str(err))
             return None
-
+ 
         return dce
 
     def rpc_get_sessions(self):
         """
         This function retrieves a list of active sessions on the target system.
-        
+
         It establishes a DCE/RPC connection to the target system using the srvs.MSRPC_UUID_SRVS UUID, which is used for session enumeration.
         It then calls the hNetrSessionEnum function to enumerate the active sessions on the target system.
         The function filters out the current session of the user running the script and machine accounts.
         It computes the session time and idle time for each session and returns a list of sessions with their details.
-        
+
         Returns:
             list: A list of active sessions on the target system, each session represented as a dictionary containing the username, session time, and idle time.
         """
@@ -693,18 +690,19 @@ class RPCSessionsEnumerator(object):
 
         try:
             resp = srvs.hNetrSessionEnum(dce, "\x00", NULL, 10)
-        except DCERPCException as e:
-            if "rpc_s_access_denied" in str(e):
+        except DCERPCException as err:
+            # impacket.dcerpc.v5.rpcrt.DCERPCException: DCERPC Runtime Error: code: 0x5 - rpc_s_access_denied
+            if "rpc_s_access_denied" in str(err):
                 if self.options.debug:
-                    self.logger.debug("Access denied while enumerating Sessions on %s, likely a patched OS", self.hostname)
-                    self.logger.error("Error: %s" % e)
+                    self.logger.debug("Access denied while enumerating Sessions on %s, likely a patched OS" % self.hostname)
+                    self.logger.error("Error: %s" % str(err))
                 return []
             else:
                 raise
-        except Exception as e:
-            if str(e).find("Broken pipe") >= 0:
+        except Exception as err:
+            if str(err).find("Broken pipe") >= 0:
                 if self.options.debug:
-                    self.logger.error("Error: %s" % e)
+                    self.logger.error("Error: %s" % str(err))
                 return []
             else:
                 raise
@@ -785,7 +783,7 @@ def worker(options, target, domain, username, password, lmhash, nthash, register
 
     try:
         target_type, target_data = target
-        
+
         target_ips = None
         target_name = ""
         if target_type.lower() in ["ip", "ipv4", "ipv6"]:
@@ -802,9 +800,15 @@ def worker(options, target, domain, username, password, lmhash, nthash, register
                     lock.release()
 
         if target_ips is not None:
+            if len(target_ips) == 0:
+                if options.debug:
+                    logger.debug("No IP addresses found for %s" % target_name)
+                return
+
             if is_port_open(target=target_ips[0], port=445):
                 rpc_sessions_enumerator = RPCSessionsEnumerator(
                     options=options,
+                    logger=logger,
                     midns=midns,
                     hostname=target_name,
                     address=target_ips[0],
@@ -821,13 +825,14 @@ def worker(options, target, domain, username, password, lmhash, nthash, register
                     results["target_name"] = []
                     for session in sessions:
                         if is_ipv4_addr(session["source"]):
-                            logger.dateprint(f"[\x1b[1;48;2;255;171;0;97m  Unknown  \x1b[0m] User \x1b[1;93m%s\x1b[0m is logged in on \x1b[1;93m%s\x1b[0m at \x1b[1;94m%s\x1b[0m from \x1b[1;95m%s\x1b[0m, IDLE since \x1b[1;96m%s\x1b[0m" % (
-                                session["username"],
-                                session["target"],
-                                session["sessionTime"],
-                                session["source"],
-                                timedeltaStr(session["sessionIdleTime"])
-                            ))
+                            if not options.ignore_unknown:
+                                logger.dateprint(f"[\x1b[1;48;2;255;171;0;97m  Unknown  \x1b[0m] User \x1b[1;93m%s\x1b[0m is logged in on \x1b[1;93m%s\x1b[0m at \x1b[1;94m%s\x1b[0m from \x1b[1;95m%s\x1b[0m, IDLE since \x1b[1;96m%s\x1b[0m" % (
+                                    session["username"],
+                                    session["target"],
+                                    session["sessionTime"],
+                                    session["source"],
+                                    timedeltaStr(session["sessionIdleTime"])
+                                ))
 
                         elif is_fqdn(session["source"]):
                             source_domain = session["source"].split('.', 1)[-1].upper()
@@ -848,7 +853,6 @@ def worker(options, target, domain, username, password, lmhash, nthash, register
                                         session["source"],
                                         timedeltaStr(session["sessionIdleTime"])
                                     ))
-                        
                         else:
                             if options.verbose or options.debug:
                                 logger.dateprint(f"[\x1b[1;48;2;83;170;51;97m   Legit   \x1b[0m] User \x1b[1;93m%s\x1b[0m is logged in on \x1b[1;93m%s\x1b[0m at \x1b[1;94m%s\x1b[0m from \x1b[1;95m%s\x1b[0m, IDLE since \x1b[1;96m%s\x1b[0m" % (
@@ -878,6 +882,7 @@ def parseArgs():
     parser.add_argument("-L", "--logfile", dest="logfile", metavar="LOGFILE", required=False, default=None, type=str, help="File to write logs to.")
     parser.add_argument("-t", "--threads", dest="threads", action="store", type=int, default=64, required=False, help="Number of threads (default: 64).")
     parser.add_argument("-ns", "--nameserver", dest="nameserver", default=None, required=False, help="IP of the DNS server to use, instead of the --dc-ip.")
+    parser.add_argument("-ld", "--legitimate-domains", dest="legitimate_domains", default=[], required=False, action="append", help="Legitimate domains to use for comparison.")
 
     group_targets_source = parser.add_argument_group("Targets")
     group_targets_source.add_argument("-tf", "--targets-file", default=None, type=str, help="Path to file containing a line by line list of targets.")
@@ -889,7 +894,8 @@ def parseArgs():
     group_targets_source.add_argument("--no-ldap", default=False, action="store_true", help="Do not perform LDAP queries.")
     group_targets_source.add_argument("--subnets", default=False, action="store_true", help="Get all subnets from the domain and use them as targets (default: False)")
     group_targets_source.add_argument("-tl", "--target-ldap-query", dest="target_ldap_query", type=str, default=None, required=False, help="LDAP query to use to extract computers from the domain.")
-    
+    group_targets_source.add_argument("--ignore-unknown", default=False, action="store_true", help="Ignore unknown sources (default: False)")
+
     secret = parser.add_argument_group("Credentials")
     cred = secret.add_mutually_exclusive_group()
     cred.add_argument("--no-pass", default=False, action="store_true", help="Don't ask for password (useful for -k)")
@@ -923,7 +929,7 @@ def parseArgs():
 
 if __name__ == '__main__':
     options = parseArgs()
-    
+
     loglevel = LogLevel.INFO
     if options.verbose == True:
         loglevel = LogLevel.VERBOSE
@@ -936,18 +942,18 @@ if __name__ == '__main__':
         if ":" not in options.auth_hashes:
             options.auth_hashes = ":" + options.auth_hashes
     auth_lm_hash, auth_nt_hash = parse_lm_nt_hashes(options.auth_hashes)
-    
+
     # Use AES Authentication key if available
     if options.auth_key is not None:
         options.auth_use_kerberos = True
     if options.auth_use_kerberos is True and options.auth_kdcHost is None:
         logger.warn("Specify KDC's Hostname of FQDN using the argument --kdcHost")
         exit()
-    
+
     try:
         if options.auth_dc_ip is not None and options.auth_user is not None and (options.auth_password is not None or options.auth_hashes is not None):
             midns = MicrosoftDNS(
-                dnsserver=options.auth_dc_ip,
+                dnsserver=options.nameserver,
                 auth_domain=options.auth_domain,
                 auth_username=options.auth_user,
                 auth_password=options.auth_password,
@@ -972,12 +978,17 @@ if __name__ == '__main__':
             auth_nt_hash=auth_nt_hash,
             use_ldaps=options.ldaps,
         )
+        if options.legitimate_domains:
+            registered_domains.extend(options.legitimate_domains)
 
+        if options.debug:
+            logger.debug("[>] Legitimate domains: %s" % registered_domains)
+
+        logger.info("[>] Loading targets ...")
         targets = load_targets(options, logger)
-
         logger.info("[+] Found %d targets." % len(targets))
-        logger.info("[>] Enumerating logged in users on each computer ...")
 
+        logger.info("[>] Enumerating logged in users on each computer ...")
         results = {}
         if len(targets) != 0:
             # Setup thread lock to properly write in the file
